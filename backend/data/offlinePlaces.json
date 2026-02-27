@@ -1,0 +1,20 @@
+{
+  "places": [
+    {
+      "name": "Gateway of India",
+      "description": "It is one of Mumbai's most iconic landmarks, built in 1924 to overlook the Arabian Sea.",
+      "bestTime": "Early morning or evening",
+      "history": "Built during British rule to welcome King George V and Queen Mary.",
+      "latitude": 18.9220,
+      "longitude": 72.8347
+    },
+    {
+      "name": "Taj Mahal",
+      "description": "An immense mausoleum of white marble, built in Agra between 1631 and 1648 by order of the Mughal emperor Shah Jahan in memory of his favourite wife.",
+      "bestTime": "Sunrise or sunset",
+      "history": "Built by Shah Jahan in memory of Mumtaz Mahal.",
+      "latitude": 27.1751,
+      "longitude": 78.0421
+    }
+  ]
+}
