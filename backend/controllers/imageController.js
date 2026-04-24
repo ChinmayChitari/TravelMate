@@ -1,76 +1,51 @@
-const vision = require('@google-cloud/vision');
-const Tour = require('../models/Tour');
-const fs = require('fs');
-const path = require('path');
+const claudeService = require('../services/claudeService');
 
-let client;
-try {
-    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-        client = new vision.ImageAnnotatorClient();
-    } else {
-        console.warn("Google Vision API key (GOOGLE_APPLICATION_CREDENTIALS) missing. Using mock vision.");
+exports.identifyLandmark = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image provided' });
     }
-} catch (err) {
-    console.warn("Failed to initialize Google Vision:", err);
-}
 
-/**
- * Image Analysis Controller
- * - Uses Google Vision API to identify landmarks
- * - Fallback to mock data if API unavailable
- */
-exports.analyzeImage = async (req, res) => {
-    try {
-        const { image } = req.body; // Expecting base64 string
+    const base64Image = req.file.buffer.toString('base64');
+    const mediaType = req.file.mimetype;
 
-        if (!image) {
-            return res.status(400).json({ error: "No image provided" });
-        }
+    const systemPrompt = `You are a landmark identification AI. Identify this landmark. Return ONLY valid JSON with this exact structure: { "name": "", "location": "", "description": "", "bestTimeToVisit": "", "funFact": "", "category": "" }`;
 
-        if (!client) {
-            const payload = {
-                name: "Gateway of India (Mock)",
-                description: "A historic monument built in 1924 during British rule. (This is a mock response as no API key was provided)",
-                bestTime: "Early morning or evening",
-                confidence: 0.95
-            };
-            if (req.user) {
-                await Tour.create({ userId: req.user.id, placeName: payload.name, description: payload.description });
+    const response = await claudeService.sendMessage({
+      model: 'anthropic/claude-3-haiku',
+      max_tokens: 1000,
+      system: systemPrompt,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Identify this landmark.'
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${mediaType};base64,${base64Image}`
+              }
             }
-            return res.json(payload);
+          ]
         }
+      ]
+    });
 
-        // Convert base64 to buffer? Or Vision supports base64 string directly via 'image: { content: base64 }'
-        // Ensure 'image' is the base64 string without data:image/jpeg;base64 prefix
-        const base64Image = image.replace(/^data:image\/\w+;base64,/, "");
-
-        const [result] = await client.landmarkDetection({
-            image: { content: base64Image }
-        });
-
-        const landmark = result.landmarkAnnotations[0];
-
-        if (!landmark) {
-            return res.json({
-                name: "Unknown Place",
-                description: "Could not identify this landmark. Try getting a clearer shot!",
-                confidence: 0
-            });
-        }
-
-        const payload = {
-            name: landmark.description,
-            location: landmark.locations,
-            description: `Identified as ${landmark.description}. A waiting for detailed info.`,
-            confidence: landmark.score
-        };
-        if (req.user) {
-            await Tour.create({ userId: req.user.id, placeName: payload.name, description: payload.description });
-        }
-        res.json(payload);
-
-    } catch (err) {
-        console.error("Image Analysis Error:", err);
-        res.status(500).json({ error: "Failed to analyze image" });
+    const replyText = response.content[0].text;
+    
+    const jsonMatch = replyText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+        throw new Error("Failed to parse JSON response");
     }
+
+    const result = JSON.parse(jsonMatch[0]);
+    res.json(result);
+  } catch (error) {
+    console.error('Image processing error:', error.message);
+    res.status(500).json({ error: 'Connection failed. Please try again.' });
+  }
 };

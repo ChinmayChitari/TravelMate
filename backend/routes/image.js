@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const imageController = require('../controllers/imageController');
-const optionalAuth = require('../middleware/optionalAuth');
 
-router.post('/analyze', optionalAuth, imageController.analyzeImage);
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+
+router.post('/', upload.single('image'), imageController.identifyLandmark);
 
 module.exports = router;
